@@ -1,0 +1,119 @@
+diff --git a/home/louis/winetricks b/home/louis/winetricksie8server2003def10jan
+index dffffab..e192e83 100755
+--- a/home/louis/winetricks
++++ b/home/louis/winetricksie8server2003def10jan
+@@ -5054,6 +5054,10 @@ winetricks_set_wineprefix()
+         W_SYSTEM64_DLLS_WIN32="C:\\windows\\sysnative" # path to access 64-bit dlls from 32-bit apps
+         # shellcheck disable=SC2034
+         W_SYSTEM64_DLLS_WIN64="C:\\windows\\system32"  # path to access 64-bit dlls from 64-bit apps
++        # There's also ProgramW6432, which =%ProgramFiles%(but only available when running under a 64 bit OS)
++        # See https://ss64.com/nt/syntax-variables.html
++        W_PROGRAMW6432_WIN="$(w_expand_env ProgramW6432)"
++        W_PROGRAMW6432_UNIX="$(w_pathconv -u "$W_PROGRAMW6432_WIN")"
+ 
+         # Probably need fancier handling/checking, but for a basic start:
+         # Note 'wine' may be named 'wine-stable'/'wine-staging'/etc.):
+@@ -10348,6 +10402,103 @@ load_ie8_kb2936068()
+ 
+ #----------------------------------------------------------------
+ 
++w_metadata ie8_server2003 dlls \
++    title="Internet Explorer 8 WindowsServer2003 (64-bit ie8)" \
++    publisher="Microsoft" \
++    media="download" \
++    file1="IE8-WindowsServer2003-x64-ENU.exe" \
++    installed_file1="c:/windows/ie8_main.log"
++
++load_ie8_server2003()
++{
++    # See also bug https://bugs.winehq.org/show_bug.cgi?id=34048
++    # Installed dlls can be found like for example in system32, doing : grep -r "This program cannot be run in DOS mode" *:
++
++    # 32 bit not supported for now
++    w_package_unsupported_win32
++
++    w_set_winver win2k3
++
++    # Unregister Wine IE
++    if grep -q -i "wine placeholder" "$W_PROGRAMS_X86_UNIX/Internet Explorer/iexplore.exe"; then
++        w_override_dlls builtin iexplore.exe
++        w_try "$WINE" iexplore -unregserver
++    fi
++
++    # FIXME: Do we need less dlls set to native?
++    # Change the override to the native so we are sure we use and register them
++    w_override_dlls native,builtin ieframe ieproxy jscript mshtml shdocvw shlwapi urlmon vbscript wininet xmllite
++
++    # Bundled updspapi cannot work on Wine
++    w_override_dlls builtin updspapi
++
++    # Can we also use sed to replace iexplore.exe's version string???? No idea
++    # Removing the fake iexplore.exe's doesn`t work. Installer still complains a newer version
++    # of IE is installed and refuses to run. Replacing fake iexplore.exe with one that
++    # has a lower version string works.
++    # Fake iexplore.exe generated with https://bugs.winehq.org/attachment.cgi?id=65708&action=diff
++    #
++    # Get fake iexplore with low version string and copy it to approriate places
++    w_download_to "$W_CACHE/$W_PACKAGE" https://bugs.winehq.org/attachment.cgi?id=65709 318ca190ffcc788e822fd7e0616ce44d9388c08261a3f1c19517e65a4f5c0732 "iexplore32.exe"  #32-bit
++    w_download_to "$W_CACHE/$W_PACKAGE" https://bugs.winehq.org/attachment.cgi?id=65710 65eaae7b2165fe4415bfb123eb179cbdd24d77ce41fe62c9ea5850f1ca83d0b6 "iexplore64.exe"  #64-bit
++
++    w_try cp -f "$W_CACHE/$W_PACKAGE/iexplore64.exe" "$W_SYSTEM64_DLLS"/iexplore.exe
++    w_try cp -f "$W_CACHE/$W_PACKAGE/iexplore32.exe" "$W_SYSTEM32_DLLS"/iexplore.exe
++
++    w_try cp -f "$W_CACHE/$W_PACKAGE/iexplore64.exe" "$W_PROGRAMW6432_UNIX/Internet Explorer/iexplore.exe"
++    w_try cp -f "$W_CACHE/$W_PACKAGE/iexplore32.exe" "$W_PROGRAMS_X86_UNIX/Internet Explorer/iexplore.exe"
++
++    w_download "http://download.microsoft.com/download/7/5/4/754D6601-662D-4E39-9788-6F90D8E5C097/IE8-WindowsServer2003-x64-ENU.exe" bcff753e92ceabf31cfefaa6def146335c7cb27a50b95cd4f4658a0c3326f499
++    if [ -n "$W_UNATTENDED_SLASH_QUIET" ]; then
++        quiet="$W_UNATTENDED_SLASH_QUIET /forcerestart"
++    else
++        quiet=""
++    fi
++
++    "$WINE" "$W_CACHE/$W_PACKAGE/$file1" $quiet
++
++    # IE8_Server exits with 194 to signal a reboot
++    status=$?
++    case $status in
++        0|194) ;;
++        *) w_die ie8 installation failed;;
++    esac
++
++    # Builtin ieproxy is in system32, but ie8's lives in Program Files. Native
++    # CLSID path will get overwritten on prefix update. Setting ieproxy to
++    # native doesn't help because setupapi ignores DLL overrides. To work
++    # around this problem, copy native ieproxy to system32.
++    w_try cp -f "$W_PROGRAMS_X86_UNIX/Internet Explorer/ieproxy.dll" "$W_SYSTEM32_DLLS"/ieproxy.dll
++    w_try cp -f "$W_PROGRAMW6432_UNIX/Internet Explorer/ieproxy.dll" "$W_SYSTEM64_DLLS"/ieproxy.dll
++
++    # Work around DLL registration bug until ierunonce/RunOnce/wineboot is fixed
++    for i in browseui.dll corpol.dll dxtmsft.dll dxtrans.dll ieaksie.dll ieapfltr.dll \
++             iedkcs32.dll iepeers.dll ieproxy.dll jscript.dll licmgr10.dll \
++             msdbg2.dll mshtmled.dll mstime.dll shdocvw.dll tdc.ocx urlmon.dll vbscript.dll; do
++        w_try_regsvr $i
++        w_try_regsvr64 $i
++    done
++
++    # This is still needed. IE does not start without this regvalue
++    if w_workaround_wine_bug 25648 "Setting TabProcGrowth=0 to avoid hang"; then
++        cat > "$W_TMP"/set-tabprocgrowth.reg <<_EOF_
++REGEDIT4
++
++[HKEY_CURRENT_USER\\Software\\Microsoft\\Internet Explorer\\Main]
++"TabProcGrowth"=dword:00000000
++
++_EOF_
++        w_try_regedit "$W_TMP_WIN"\\set-tabprocgrowth.reg
++    fi
++
++    w_set_app_winver iexplore.exe win2k3
++    w_override_dlls native iexplore.exe
++
++    w_set_winver 'default'
++}
++
++#----------------------------------------------------------------
++
+ w_metadata l3codecx dlls \
+     title="MPEG Layer-3 Audio Codec for Microsoft DirectShow" \
+     publisher="Microsoft" \

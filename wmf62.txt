@@ -1,0 +1,340 @@
+
+############################################################################################################################################
+
+
+helper_winvista()
+{
+    filename=$1
+
+    if test -f "$W_CACHE/winvista/Windows6.0-KB936330-X64-wave0.exe"; then
+        echo "Windows6.0-KB936330-X64-wave0.exe exists, skipping download ...."
+    else
+        w_download_to winvista https://download.microsoft.com/download/8/3/b/83b8c814-b000-44a4-b667-8c1f58727b8b/Windows6.0-KB936330-X64-wave0.exe a48ec1ba10120676c0529121dff5303ec777988ba25133d1dd15234a04dd6f9e 
+    fi
+
+    cabextract -d "$W_TMP/winvista" -F "$filename" "$W_CACHE/winvista/Windows6.0-KB936330-X64-wave0.exe"
+}
+
+w_metadata expand dlls
+
+load_expand()
+{   
+    for i in x86_microsoft-windows-basic-misc-tools_31bf3856ad364e35_6.0.6001.18000_none_175cb770bf6b8f77/expand.exe \
+        x86_microsoft-windows-deltapackageexpander_31bf3856ad364e35_6.0.6001.18000_none_69de962f3507db4b/dpx.dll \
+        x86_microsoft-windows-cabinet_31bf3856ad364e35_6.0.6001.18000_none_373f511ce1ebb446/cabinet.dll \
+        x86_microsoft-windows-servicingstack_31bf3856ad364e35_6.0.6001.18000_none_095f6148c74a7a64/msdelta.dll; do
+
+        helper_winvista "$i"
+        w_try cp "$W_TMP/winvista/$i" "$W_SYSTEM32_DLLS/"
+
+    done
+
+    if [ "$W_ARCH" = "win64" ]; then
+
+        for i in amd64_microsoft-windows-basic-misc-tools_31bf3856ad364e35_6.0.6001.18000_none_737b52f477c900ad/expand.exe \
+            amd64_microsoft-windows-deltapackageexpander_31bf3856ad364e35_6.0.6001.18000_none_c5fd31b2ed654c81/dpx.dll \
+            amd64_microsoft-windows-cabinet_31bf3856ad364e35_6.0.6001.18000_none_935deca09a49257c/cabinet.dll \
+            amd64_microsoft-windows-deltacompressionengine_31bf3856ad364e35_6.0.6001.18000_none_9c4b039c3e1c8af8/msdelta.dll; do
+
+            helper_winvista "$i"
+            w_try cp "$W_TMP/winvista/$i" "$W_SYSTEM64_DLLS/"
+        done
+    fi  
+ 
+    #Do not set cabinet to native, it breaks lots of installers (!), but to extract files with expand it works ok. So give example to user
+    echo "Example of usage: WINEDLLOVERRIDES=expand.exe,cabinet=n wine expand -F:* some.msu .  ---> extract all files from msu to current dir
+                            WINEDLLOVERRIDES=expand.exe,cabinet=n wine expand -F:* some.cab .  ---> extract all files from cab to current dir
+                            WINEDLLOVERRIDES=expand.exe,cabinet=n wine expand /d some.cab      ---> list all files in cab"
+}
+
+
+helper_wmf62()
+{
+    filename=$1
+
+    if test -f "$W_CACHE/wmf62/Windows6.2-KB2703761-x64.msu"; then
+        echo "Windows6.2-KB2703761-x64.msu exists, skipping download ...."
+    else
+        w_download_to wmf62 https://download.microsoft.com/download/7/A/D/7AD12930-3AA6-4040-81CF-350BF1E99076/Windows6.2-KB2703761-x64.msu # b7976e24d19d2aade5491514b9af3aeee6d095c774eec846fbbc21348389d593
+    fi
+
+    if test -f "$W_CACHE/wmf62/Windows6.2-KB2703761-x64.cab"; then
+        echo "Windows6.2-KB2703761-x64.cab exists, skipping cabextract ...."
+    else
+        w_try cabextract -d "$W_CACHE/wmf62" -F "Windows6.2-KB2703761-x64.cab" "$W_CACHE/wmf62/Windows6.2-KB2703761-x64.msu" 
+    fi
+
+    STRIPPEDNAME="$(echo $filename | sed -n 's/^.*\//\//p' | sed 's/\///')" 
+    echo "Processing $STRIPPEDNAME"
+    WINEDLLOVERRIDES=expand.exe,cabinet=n "$WINE" expand.exe "$W_CACHE_WIN\\wmf62\\Windows6.2-KB2703761-x64.cab" /f:"$STRIPPEDNAME" "$W_TMP_WIN"
+}
+
+
+w_metadata wmf62 dlls
+
+load_wmf62()
+{   
+    w_call expand
+
+    for i in amd64_microsoft-windows-mediaplayer-wmasf_31bf3856ad364e35_6.2.9200.16384_none_007f9804ca2c4343/asferror.dll \
+        x86_microsoft-windows-mediaplayer-wmasf_31bf3856ad364e35_6.2.9200.16384_none_a460fc8111ced20d/asferror.dll \
+        x86_microsoft-windows-w..ywmdmshellextension_31bf3856ad364e35_6.2.9200.16384_none_8a99583effe6f306/audiodev.dll \
+        amd64_microsoft-windows-mediaplayer-drm_31bf3856ad364e35_6.2.9200.16384_none_c6f7c2a74e912440/blackbox.dll \
+        wow64_microsoft-windows-mediaplayer-drm_31bf3856ad364e35_6.2.9200.16384_none_d14c6cf982f1e63b/blackbox.dll \
+        amd64_microsoft-windows-webcamexperience_31bf3856ad364e35_6.2.9200.16384_none_c5b277ae35924ce4/camerasettingsuihost.exe \
+        x86_microsoft-windows-webcamexperience_31bf3856ad364e35_6.2.9200.16384_none_6993dc2a7d34dbae/camerasettingsuihost.exe \
+        amd64_microsoft-windows-wpd-legacywmdmcesp_31bf3856ad364e35_6.2.9200.16384_none_15678d8d8ab95fd8/cewmdm.dll \
+        x86_microsoft-windows-wpd-legacywmdmcesp_31bf3856ad364e35_6.2.9200.16384_none_b948f209d25beea2/cewmdm.dll \
+        amd64_microsoft-windows-wmviddsp_31bf3856ad364e35_6.2.9200.16384_none_ffad9b10ff021ba1/colorcnv.dll \
+        x86_microsoft-windows-wmviddsp_31bf3856ad364e35_6.2.9200.16384_none_a38eff8d46a4aa6b/colorcnv.dll \
+        amd64_microsoft-windows-w..erplaydvddiagnostic_31bf3856ad364e35_6.2.9200.16384_none_f4ae3d4d3a878aa0/diagpackage.dll \
+        amd64_microsoft-windows-w..ialibrarydiagnostic_31bf3856ad364e35_6.2.9200.16384_none_81b78167f1f5f05f/diagpackage.dll \
+        amd64_microsoft-windows-w..igurationdiagnostic_31bf3856ad364e35_6.2.9200.16384_none_3d01ad365d471968/diagpackage.dll \
+        amd64_microsoft-windows-d..lnamespaceextension_31bf3856ad364e35_6.2.9200.16384_none_a1037ca8f3257f90/dlnashext.dll \
+        x86_microsoft-windows-d..lnamespaceextension_31bf3856ad364e35_6.2.9200.16384_none_44e4e1253ac80e5a/dlnashext.dll \
+        amd64_microsoft-windows-mediaplayer-drm_31bf3856ad364e35_6.2.9200.16384_none_c6f7c2a74e912440/drmmgrtn.dll \
+        wow64_microsoft-windows-mediaplayer-drm_31bf3856ad364e35_6.2.9200.16384_none_d14c6cf982f1e63b/drmmgrtn.dll \
+        amd64_microsoft-windows-mediaplayer-drm_31bf3856ad364e35_6.2.9200.16384_none_c6f7c2a74e912440/drmv2clt.dll \
+        wow64_microsoft-windows-mediaplayer-drm_31bf3856ad364e35_6.2.9200.16384_none_d14c6cf982f1e63b/drmv2clt.dll \
+        amd64_microsoft-windows-mediaplayer-core_31bf3856ad364e35_6.2.9200.16384_none_64336a83d8ddef8c/dxmasf.dll \
+        wow64_microsoft-windows-mediaplayer-core_31bf3856ad364e35_6.2.9200.16384_none_6e8814d60d3eb187/dxmasf.dll \
+        amd64_microsoft-windows-dxptasks-ringtone_31bf3856ad364e35_6.2.9200.16384_none_075697f89bc6a5da/dxptaskringtone.dll \
+        x86_microsoft-windows-dxptasks-ringtone_31bf3856ad364e35_6.2.9200.16384_none_ab37fc74e36934a4/dxptaskringtone.dll \
+        amd64_microsoft-windows-enhancedvideorenderer_31bf3856ad364e35_6.2.9200.16384_none_e86c2510564ab50b/evr.dll \
+        x86_microsoft-windows-enhancedvideorenderer_31bf3856ad364e35_6.2.9200.16384_none_8c4d898c9ded43d5/evr.dll \
+        amd64_microsoft-windows-mediaplayer-wmasf_31bf3856ad364e35_6.2.9200.16384_none_007f9804ca2c4343/laprxy.dll \
+        x86_microsoft-windows-mediaplayer-wmasf_31bf3856ad364e35_6.2.9200.16384_none_a460fc8111ced20d/laprxy.dll \
+        amd64_microsoft-windows-mediaplayer-logagent_31bf3856ad364e35_6.2.9200.16384_none_440a339c4bcd0e16/logagent.exe \
+        x86_microsoft-windows-mediaplayer-logagent_31bf3856ad364e35_6.2.9200.16384_none_e7eb9818936f9ce0/logagent.exe \
+        amd64_microsoft-windows-dlna-mdeserver_31bf3856ad364e35_6.2.9200.16384_none_2ed1da78aca60f34/mdeserver.exe \
+        amd64_microsoft-windows-mfaacenc_31bf3856ad364e35_6.2.9200.16384_none_cb73bb2c7bdeaf73/mfaacenc.dll \
+        x86_microsoft-windows-mfaacenc_31bf3856ad364e35_6.2.9200.16384_none_6f551fa8c3813e3d/mfaacenc.dll \
+        amd64_microsoft-windows-mfasfsrcsnk_31bf3856ad364e35_6.2.9200.16384_none_194798b9c65ab9dc/mfasfsrcsnk.dll \
+        wow64_microsoft-windows-mfasfsrcsnk_31bf3856ad364e35_6.2.9200.16384_none_239c430bfabb7bd7/mfasfsrcsnk.dll \
+        amd64_microsoft-windows-m..ion-mfcaptureengine_31bf3856ad364e35_6.2.9200.16384_none_4544faa92786c2ea/mfcaptureengine.dll \
+        x86_microsoft-windows-m..ion-mfcaptureengine_31bf3856ad364e35_6.2.9200.16384_none_e9265f256f2951b4/mfcaptureengine.dll \
+        amd64_microsoft-windows-mfcore_31bf3856ad364e35_6.2.9200.16384_none_49a24d99e0f5ce69/mfcore.dll \
+        wow64_microsoft-windows-mfcore_31bf3856ad364e35_6.2.9200.16384_none_53f6f7ec15569064/mfcore.dll \
+        amd64_microsoft-windows-mediafoundation_31bf3856ad364e35_6.2.9200.16384_none_f528d6a09685e07a/mf.dll \
+        wow64_microsoft-windows-mediafoundation_31bf3856ad364e35_6.2.9200.16384_none_ff7d80f2cae6a275/mf.dll \
+        amd64_microsoft-windows-mfds_31bf3856ad364e35_6.2.9200.16384_none_fe58016ba7414657/mfds.dll \
+        wow64_microsoft-windows-mfds_31bf3856ad364e35_6.2.9200.16384_none_08acabbddba20852/mfds.dll \
+        amd64_microsoft-windows-mfdvdec_31bf3856ad364e35_6.2.9200.16384_none_617ba2a0d1902ac4/mfdvdec.dll \
+        wow64_microsoft-windows-mfdvdec_31bf3856ad364e35_6.2.9200.16384_none_6bd04cf305f0ecbf/mfdvdec.dll \
+        amd64_microsoft-windows-mediafoundation_31bf3856ad364e35_6.2.9200.16384_none_f528d6a09685e07a/mferror.dll \
+        wow64_microsoft-windows-mediafoundation_31bf3856ad364e35_6.2.9200.16384_none_ff7d80f2cae6a275/mferror.dll \
+        amd64_microsoft-windows-mfh264enc_31bf3856ad364e35_6.2.9200.16384_none_e32b530cbe0bfb90/mfh264enc.dll \
+        x86_microsoft-windows-mfh264enc_31bf3856ad364e35_6.2.9200.16384_none_870cb78905ae8a5a/mfh264enc.dll \
+        amd64_microsoft-windows-m..ation-mfmediaengine_31bf3856ad364e35_6.2.9200.16384_none_591ec130f66c67b6/mfmediaengine.dll \
+        x86_microsoft-windows-m..ation-mfmediaengine_31bf3856ad364e35_6.2.9200.16384_none_fd0025ad3e0ef680/mfmediaengine.dll \
+        amd64_microsoft-windows-mfmjpegdec_31bf3856ad364e35_6.2.9200.16384_none_72279f25ddb38ea3/mfmjpegdec.dll \
+        wow64_microsoft-windows-mfmjpegdec_31bf3856ad364e35_6.2.9200.16384_none_7c7c49781214509e/mfmjpegdec.dll \
+        amd64_microsoft-windows-mfmp4srcsnk_31bf3856ad364e35_6.2.9200.16384_none_5f799e6437d998c1/mfmp4srcsnk.dll \
+        wow64_microsoft-windows-mfmp4srcsnk_31bf3856ad364e35_6.2.9200.16384_none_69ce48b66c3a5abc/mfmp4srcsnk.dll \
+        amd64_microsoft-windows-mfmpeg2srcsnk_31bf3856ad364e35_6.2.9200.16384_none_a4713fde581b2f25/mfmpeg2srcsnk.dll \
+        wow64_microsoft-windows-mfmpeg2srcsnk_31bf3856ad364e35_6.2.9200.16384_none_aec5ea308c7bf120/mfmpeg2srcsnk.dll \
+        amd64_microsoft-windows-mfnetcore_31bf3856ad364e35_6.2.9200.16384_none_e79d9ab876d88058/mfnetcore.dll \
+        wow64_microsoft-windows-mfnetcore_31bf3856ad364e35_6.2.9200.16384_none_f1f2450aab394253/mfnetcore.dll \
+        amd64_microsoft-windows-mfnetsrc_31bf3856ad364e35_6.2.9200.16384_none_cb7e662343cad445/mfnetsrc.dll \
+        wow64_microsoft-windows-mfnetsrc_31bf3856ad364e35_6.2.9200.16384_none_d5d31075782b9640/mfnetsrc.dll \
+        amd64_microsoft-windows-mfplat_31bf3856ad364e35_6.2.9200.16384_none_4f744011dd398719/mfplat.dll \
+        x86_microsoft-windows-mfplat_31bf3856ad364e35_6.2.9200.16384_none_f355a48e24dc15e3/mfplat.dll \
+        amd64_microsoft-windows-mfplay_31bf3856ad364e35_6.2.9200.16384_none_4f73ce29dd3a073e/mfplay.dll \
+        wow64_microsoft-windows-mfplay_31bf3856ad364e35_6.2.9200.16384_none_59c8787c119ac939/mfplay.dll \
+        amd64_microsoft-windows-mediafoundation_31bf3856ad364e35_6.2.9200.16384_none_f528d6a09685e07a/mfpmp.exe \
+        wow64_microsoft-windows-mediafoundation_31bf3856ad364e35_6.2.9200.16384_none_ff7d80f2cae6a275/mfpmp.exe \
+        amd64_microsoft-windows-mediafoundation_31bf3856ad364e35_6.2.9200.16384_none_f528d6a09685e07a/mfps.dll \
+        wow64_microsoft-windows-mediafoundation_31bf3856ad364e35_6.2.9200.16384_none_ff7d80f2cae6a275/mfps.dll \
+        amd64_microsoft-windows-mfreadwrite_31bf3856ad364e35_6.2.9200.16384_none_121f8f68a1c8a415/mfreadwrite.dll \
+        wow64_microsoft-windows-mfreadwrite_31bf3856ad364e35_6.2.9200.16384_none_1c7439bad6296610/mfreadwrite.dll \
+        amd64_microsoft-windows-mfsrcsnk_31bf3856ad364e35_6.2.9200.16384_none_4754e9b38742e90a/mfsrcsnk.dll \
+        wow64_microsoft-windows-mfsrcsnk_31bf3856ad364e35_6.2.9200.16384_none_51a99405bba3ab05/mfsrcsnk.dll \
+        amd64_microsoft-windows-mediafoundation-mfsvr_31bf3856ad364e35_6.2.9200.16384_none_1786c7cf44c84083/mfsvr.dll \
+        x86_microsoft-windows-mediafoundation-mfsvr_31bf3856ad364e35_6.2.9200.16384_none_bb682c4b8c6acf4d/mfsvr.dll \
+        amd64_microsoft-windows-m..ndation-mftranscode_31bf3856ad364e35_6.2.9200.16384_none_1801f44b1caf369b/mftranscode.dll \
+        wow64_microsoft-windows-m..ndation-mftranscode_31bf3856ad364e35_6.2.9200.16384_none_22569e9d510ff896/mftranscode.dll \
+        amd64_microsoft-windows-mfvdsp_31bf3856ad364e35_6.2.9200.16384_none_52864ad9db322455/mfvdsp.dll \
+        x86_microsoft-windows-mfvdsp_31bf3856ad364e35_6.2.9200.16384_none_f667af5622d4b31f/mfvdsp.dll \
+        amd64_microsoft-windows-mfwmaaec_31bf3856ad364e35_6.2.9200.16384_none_ed102950be27f41c/mfwmaaec.dll \
+        x86_microsoft-windows-mfwmaaec_31bf3856ad364e35_6.2.9200.16384_none_90f18dcd05ca82e6/mfwmaaec.dll \
+        amd64_microsoft-windows-mp3dmod_31bf3856ad364e35_6.2.9200.16384_none_45e4d14b637096ff/mp3dmod.dll \
+        x86_microsoft-windows-mp3dmod_31bf3856ad364e35_6.2.9200.16384_none_e9c635c7ab1325c9/mp3dmod.dll \
+        amd64_microsoft-windows-mp43decd_31bf3856ad364e35_6.2.9200.16384_none_0cfcd2f17af553ed/mp43decd.dll \
+        x86_microsoft-windows-mp43decd_31bf3856ad364e35_6.2.9200.16384_none_b0de376dc297e2b7/mp43decd.dll \
+        amd64_microsoft-windows-mp4sdecd_31bf3856ad364e35_6.2.9200.16384_none_67b20ff8f6ed67ad/mp4sdecd.dll \
+        x86_microsoft-windows-mp4sdecd_31bf3856ad364e35_6.2.9200.16384_none_0b9374753e8ff677/mp4sdecd.dll \
+        amd64_microsoft-windows-mpg4decd_31bf3856ad364e35_6.2.9200.16384_none_b96f35adebce0697/mpg4decd.dll \
+        x86_microsoft-windows-mpg4decd_31bf3856ad364e35_6.2.9200.16384_none_5d509a2a33709561/mpg4decd.dll \
+        amd64_microsoft-windows-mediaplayer-vis_31bf3856ad364e35_6.2.9200.16384_none_c9b3bff74cca20df/mpvis.dll \
+        x86_microsoft-windows-mediaplayer-vis_31bf3856ad364e35_6.2.9200.16384_none_6d952473946cafa9/mpvis.dll \
+        amd64_microsoft-windows-msac3enc_31bf3856ad364e35_6.2.9200.16384_none_fda8755e0568add4/msac3enc.dll \
+        x86_microsoft-windows-msac3enc_31bf3856ad364e35_6.2.9200.16384_none_a189d9da4d0b3c9e/msac3enc.dll \
+        amd64_microsoft-windows-msauddecmft_31bf3856ad364e35_6.2.9200.16384_none_aee6a3a80b9934cc/msauddecmft.dll \
+        x86_microsoft-windows-msauddecmft_31bf3856ad364e35_6.2.9200.16384_none_52c80824533bc396/msauddecmft.dll \
+        amd64_microsoft-windows-msmpeg2adec_31bf3856ad364e35_6.2.9200.16384_none_eaa3fa86411bf2f7/msmpeg2adec.dll \
+        x86_microsoft-windows-msmpeg2adec_31bf3856ad364e35_6.2.9200.16384_none_8e855f0288be81c1/msmpeg2adec.dll \
+        amd64_microsoft-windows-msmpeg2enc_31bf3856ad364e35_6.2.9200.16384_none_620740cacfc46bf2/msmpeg2enc.dll \
+        x86_microsoft-windows-msmpeg2enc_31bf3856ad364e35_6.2.9200.16384_none_05e8a5471766fabc/msmpeg2enc.dll \
+        amd64_microsoft-windows-msmpeg2vdec_31bf3856ad364e35_6.2.9200.16384_none_e9c0ec2a41c63dbc/msmpeg2vdec.dll \
+        x86_microsoft-windows-msmpeg2vdec_31bf3856ad364e35_6.2.9200.16384_none_8da250a68968cc86/msmpeg2vdec.dll \
+        amd64_microsoft-windows-mediaplayer-drm_31bf3856ad364e35_6.2.9200.16384_none_c6f7c2a74e912440/msnetobj.dll \
+        wow64_microsoft-windows-mediaplayer-drm_31bf3856ad364e35_6.2.9200.16384_none_d14c6cf982f1e63b/msnetobj.dll \
+        amd64_microsoft-windows-mediaplayer-drm_31bf3856ad364e35_6.2.9200.16384_none_c6f7c2a74e912440/msscp.dll \
+        wow64_microsoft-windows-mediaplayer-drm_31bf3856ad364e35_6.2.9200.16384_none_d14c6cf982f1e63b/msscp.dll \
+        amd64_microsoft-windows-msvideodsp_31bf3856ad364e35_6.2.9200.16384_none_2859d5d527733b3d/msvideodsp.dll \
+        x86_microsoft-windows-msvideodsp_31bf3856ad364e35_6.2.9200.16384_none_cc3b3a516f15ca07/msvideodsp.dll \
+        amd64_microsoft-windows-vidproc_31bf3856ad364e35_6.2.9200.16384_none_2232749b0059f1b8/msvproc.dll \
+        x86_microsoft-windows-vidproc_31bf3856ad364e35_6.2.9200.16384_none_c613d91747fc8082/msvproc.dll \
+        amd64_microsoft-windows-wpd-legacywmdmapi_31bf3856ad364e35_6.2.9200.16384_none_b27438a7f96ec425/mswmdm.dll \
+        x86_microsoft-windows-wpd-legacywmdmapi_31bf3856ad364e35_6.2.9200.16384_none_56559d24411152ef/mswmdm.dll \
+        amd64_microsoft-windows-playtomanager_31bf3856ad364e35_6.2.9200.16384_none_ff84137a864d561f/playtomanager.dll \
+        x86_microsoft-windows-playtomanager_31bf3856ad364e35_6.2.9200.16384_none_a36577f6cdefe4e9/playtomanager.dll \
+        amd64_microsoft-windows-wpd-portabledeviceapi_31bf3856ad364e35_6.2.9200.16384_none_a3ca6daa75ce2624/portabledeviceapi.dll \
+        x86_microsoft-windows-wpd-portabledeviceapi_31bf3856ad364e35_6.2.9200.16384_none_47abd226bd70b4ee/portabledeviceapi.dll \
+        amd64_microsoft-windows-wpd-portabledeviceapi_31bf3856ad364e35_6.2.9200.16384_none_a3ca6daa75ce2624/portabledeviceclassextension.dll \
+        x86_microsoft-windows-wpd-portabledeviceapi_31bf3856ad364e35_6.2.9200.16384_none_47abd226bd70b4ee/portabledeviceclassextension.dll \
+        amd64_microsoft-windows-wpd-portabledeviceapi_31bf3856ad364e35_6.2.9200.16384_none_a3ca6daa75ce2624/portabledeviceconnectapi.dll \
+        x86_microsoft-windows-wpd-portabledeviceapi_31bf3856ad364e35_6.2.9200.16384_none_47abd226bd70b4ee/portabledeviceconnectapi.dll \
+        amd64_microsoft-windows-wpd-status_31bf3856ad364e35_6.2.9200.16384_none_652cda7163385e71/portabledevicestatus.dll \
+        x86_microsoft-windows-wpd-status_31bf3856ad364e35_6.2.9200.16384_none_090e3eedaadaed3b/portabledevicestatus.dll \
+        amd64_microsoft-windows-wpd-portabledeviceapi_31bf3856ad364e35_6.2.9200.16384_none_a3ca6daa75ce2624/portabledevicetypes.dll \
+        x86_microsoft-windows-wpd-portabledeviceapi_31bf3856ad364e35_6.2.9200.16384_none_47abd226bd70b4ee/portabledevicetypes.dll \
+        amd64_microsoft-windows-w..cationcompatibility_31bf3856ad364e35_6.2.9200.16384_none_8b7e16b255dcdd12/portabledevicewiacompat.dll \
+        x86_microsoft-windows-w..cationcompatibility_31bf3856ad364e35_6.2.9200.16384_none_2f5f7b2e9d7f6bdc/portabledevicewiacompat.dll \
+        amd64_microsoft-windows-w..ewmdrmcompatibility_31bf3856ad364e35_6.2.9200.16384_none_05dbdd70b0578be7/portabledevicewmdrm.dll \
+        x86_microsoft-windows-w..ewmdrmcompatibility_31bf3856ad364e35_6.2.9200.16384_none_a9bd41ecf7fa1ab1/portabledevicewmdrm.dll \
+        amd64_microsoft-windows-resampledmo_31bf3856ad364e35_6.2.9200.16384_none_f8359d15623522ce/resampledmo.dll \
+        x86_microsoft-windows-resampledmo_31bf3856ad364e35_6.2.9200.16384_none_9c170191a9d7b198/resampledmo.dll \
+        amd64_microsoft-windows-mediafoundation_31bf3856ad364e35_6.2.9200.16384_none_f528d6a09685e07a/rrinstaller.exe \
+        wow64_microsoft-windows-mediafoundation_31bf3856ad364e35_6.2.9200.16384_none_ff7d80f2cae6a275/rrinstaller.exe \
+        amd64_microsoft-windows-mediaplayer-setup_31bf3856ad364e35_6.2.9200.16384_none_06bd70e6604f0fe4/setup_wm.exe \
+        x86_microsoft-windows-mediaplayer-setup_31bf3856ad364e35_6.2.9200.16384_none_aa9ed562a7f19eae/setup_wm.exe \
+        amd64_microsoft-windows-mediaplayer-core_31bf3856ad364e35_6.2.9200.16384_none_64336a83d8ddef8c/spwmp.dll \
+        wow64_microsoft-windows-mediaplayer-core_31bf3856ad364e35_6.2.9200.16384_none_6e8814d60d3eb187/spwmp.dll \
+        amd64_microsoft-windows-media-format-sqm_31bf3856ad364e35_6.2.9200.16384_none_b2c535ba28d54251/sqmapi.dll \
+        amd64_microsoft-windows-wpd-portabledevicesqm_31bf3856ad364e35_6.2.9200.16384_none_abbf202270b0f8ef/sqmapi.dll \
+        wow64_microsoft-windows-media-format-sqm_31bf3856ad364e35_6.2.9200.16384_none_bd19e00c5d36044c/sqmapi.dll \
+        wow64_microsoft-windows-wpd-portabledevicesqm_31bf3856ad364e35_6.2.9200.16384_none_b613ca74a511baea/sqmapi.dll \
+        amd64_microsoft-windows-mediaplayer-setup_31bf3856ad364e35_6.2.9200.16384_none_06bd70e6604f0fe4/unregmp2.exe \
+        x86_microsoft-windows-mediaplayer-setup_31bf3856ad364e35_6.2.9200.16384_none_aa9ed562a7f19eae/unregmp2.exe \
+        amd64_microsoft-windows-wmviddsp_31bf3856ad364e35_6.2.9200.16384_none_ffad9b10ff021ba1/vidreszr.dll \
+        x86_microsoft-windows-wmviddsp_31bf3856ad364e35_6.2.9200.16384_none_a38eff8d46a4aa6b/vidreszr.dll \
+        amd64_microsoft-windows-runtime-windows-media_31bf3856ad364e35_6.2.9200.16384_none_a033137658418412/windows.media.dll \
+        wow64_microsoft-windows-runtime-windows-media_31bf3856ad364e35_6.2.9200.16384_none_aa87bdc88ca2460d/windows.media.dll \
+        amd64_microsoft-windows-r..ndows-media-renewal_31bf3856ad364e35_6.2.9200.16384_none_58aae5020b2d5bfb/windows.media.renewal.dll \
+        amd64_microsoft-windows-media-streaming-dll_31bf3856ad364e35_6.2.9200.16384_none_a73a00f390c5fed5/windows.media.streaming.dll \
+        x86_microsoft-windows-media-streaming-dll_31bf3856ad364e35_6.2.9200.16384_none_4b1b656fd8688d9f/windows.media.streaming.dll \
+        amd64_microsoft-windows-media-streaming-ps_31bf3856ad364e35_6.2.9200.16384_none_9d2ec964974e0b04/windows.media.streaming.ps.dll \
+        x86_microsoft-windows-media-streaming-ps_31bf3856ad364e35_6.2.9200.16384_none_41102de0def099ce/windows.media.streaming.ps.dll \
+        amd64_microsoft-windows-winmde_31bf3856ad364e35_6.2.9200.16384_none_0f7c9ccb25f3ad89/winmde.dll \
+        wow64_microsoft-windows-winmde_31bf3856ad364e35_6.2.9200.16384_none_19d1471d5a546f84/winmde.dll \
+        amd64_microsoft-windows-wmadmod_31bf3856ad364e35_6.2.9200.16384_none_df1892a1a7bc477a/wmadmod.dll \
+        x86_microsoft-windows-wmadmod_31bf3856ad364e35_6.2.9200.16384_none_82f9f71def5ed644/wmadmod.dll \
+        amd64_microsoft-windows-wmadmoe_31bf3856ad364e35_6.2.9200.16384_none_df8a19cfa7734c01/wmadmoe.dll \
+        x86_microsoft-windows-wmadmoe_31bf3856ad364e35_6.2.9200.16384_none_836b7e4bef15dacb/wmadmoe.dll \
+        amd64_microsoft-windows-mediaplayer-wmasf_31bf3856ad364e35_6.2.9200.16384_none_007f9804ca2c4343/wmasf.dll \
+        x86_microsoft-windows-mediaplayer-wmasf_31bf3856ad364e35_6.2.9200.16384_none_a460fc8111ced20d/wmasf.dll \
+        amd64_microsoft-windows-wmcodecdspps_31bf3856ad364e35_6.2.9200.16384_none_3c38321f7fb249d7/wmcodecdspps.dll \
+        x86_microsoft-windows-wmcodecdspps_31bf3856ad364e35_6.2.9200.16384_none_e019969bc754d8a1/wmcodecdspps.dll \
+        amd64_microsoft-windows-wpd-legacywmdmapi_31bf3856ad364e35_6.2.9200.16384_none_b27438a7f96ec425/wmdmlog.dll \
+        x86_microsoft-windows-wpd-legacywmdmapi_31bf3856ad364e35_6.2.9200.16384_none_56559d24411152ef/wmdmlog.dll \
+        amd64_microsoft-windows-wpd-legacywmdmapi_31bf3856ad364e35_6.2.9200.16384_none_b27438a7f96ec425/wmdmps.dll \
+        x86_microsoft-windows-wpd-legacywmdmapi_31bf3856ad364e35_6.2.9200.16384_none_56559d24411152ef/wmdmps.dll \
+        amd64_microsoft-windows-mediaplayer-drm_31bf3856ad364e35_6.2.9200.16384_none_c6f7c2a74e912440/wmdrmdev.dll \
+        wow64_microsoft-windows-mediaplayer-drm_31bf3856ad364e35_6.2.9200.16384_none_d14c6cf982f1e63b/wmdrmdev.dll \
+        amd64_microsoft-windows-mediaplayer-drm_31bf3856ad364e35_6.2.9200.16384_none_c6f7c2a74e912440/wmdrmnet.dll \
+        wow64_microsoft-windows-mediaplayer-drm_31bf3856ad364e35_6.2.9200.16384_none_d14c6cf982f1e63b/wmdrmnet.dll \
+        amd64_microsoft-windows-mediaplayer-drm_31bf3856ad364e35_6.2.9200.16384_none_c6f7c2a74e912440/wmdrmsdk.dll \
+        wow64_microsoft-windows-mediaplayer-drm_31bf3856ad364e35_6.2.9200.16384_none_d14c6cf982f1e63b/wmdrmsdk.dll \
+        amd64_microsoft-windows-mediaplayer-wmerror_31bf3856ad364e35_6.2.9200.16384_none_901e9a5240baa389/wmerror.dll \
+        x86_microsoft-windows-mediaplayer-wmerror_31bf3856ad364e35_6.2.9200.16384_none_33fffece885d3253/wmerror.dll \
+        amd64_microsoft-windows-mediaplayer-mls_31bf3856ad364e35_6.2.9200.16384_none_c9aa79054cd289b3/wmidx.dll \
+        x86_microsoft-windows-mediaplayer-mls_31bf3856ad364e35_6.2.9200.16384_none_6d8bdd819475187d/wmidx.dll \
+        amd64_microsoft-windows-mediaplayer-autoplay_31bf3856ad364e35_6.2.9200.16384_none_73c45802c9bef5d4/wmlaunch.exe \
+        wow64_microsoft-windows-mediaplayer-autoplay_31bf3856ad364e35_6.2.9200.16384_none_7e190254fe1fb7cf/wmlaunch.exe \
+        amd64_microsoft-windows-mediaplayer-wmnetmgr_31bf3856ad364e35_6.2.9200.16384_none_a00f9d7b48661606/wmnetmgr.dll \
+        wow64_microsoft-windows-mediaplayer-wmnetmgr_31bf3856ad364e35_6.2.9200.16384_none_aa6447cd7cc6d801/wmnetmgr.dll \
+        amd64_microsoft-windows-mediaplayer-core_31bf3856ad364e35_6.2.9200.16384_none_64336a83d8ddef8c/wmpconfig.exe \
+        wow64_microsoft-windows-mediaplayer-core_31bf3856ad364e35_6.2.9200.16384_none_6e8814d60d3eb187/wmpconfig.exe \
+        amd64_microsoft-windows-mediaplayer-core_31bf3856ad364e35_6.2.9200.16384_none_64336a83d8ddef8c/wmp.dll \
+        wow64_microsoft-windows-mediaplayer-core_31bf3856ad364e35_6.2.9200.16384_none_6e8814d60d3eb187/wmp.dll \
+        amd64_microsoft-windows-wmpdmc-ux_31bf3856ad364e35_6.2.9200.16384_none_472d182d81250ed5/wmpdmc.exe \
+        x86_microsoft-windows-wmpdmc-ux_31bf3856ad364e35_6.2.9200.16384_none_eb0e7ca9c8c79d9f/wmpdmc.exe \
+        amd64_microsoft-windows-mediaplayer-wmpdxm_31bf3856ad364e35_6.2.9200.16384_none_fd01cabeb18fbf0e/wmpdxm.dll \
+        wow64_microsoft-windows-mediaplayer-wmpdxm_31bf3856ad364e35_6.2.9200.16384_none_07567510e5f08109/wmpdxm.dll \
+        amd64_microsoft-windows-mediaplayer-wmpeffects_31bf3856ad364e35_6.2.9200.16384_none_52178eac1935e91f/wmpeffects.dll \
+        x86_microsoft-windows-mediaplayer-wmpeffects_31bf3856ad364e35_6.2.9200.16384_none_f5f8f32860d877e9/wmpeffects.dll \
+        amd64_microsoft-windows-mediaplayer-core_31bf3856ad364e35_6.2.9200.16384_none_64336a83d8ddef8c/wmplayer.exe \
+        wow64_microsoft-windows-mediaplayer-core_31bf3856ad364e35_6.2.9200.16384_none_6e8814d60d3eb187/wmplayer.exe \
+        amd64_microsoft-windows-mediaplayer-core_31bf3856ad364e35_6.2.9200.16384_none_64336a83d8ddef8c/wmploc.dll \
+        wow64_microsoft-windows-mediaplayer-core_31bf3856ad364e35_6.2.9200.16384_none_6e8814d60d3eb187/wmploc.dll \
+        amd64_microsoft-windows-w..mediadeliveryengine_31bf3856ad364e35_6.2.9200.16384_none_7639c83ce7580cfc/wmpmde.dll \
+        amd64_microsoft-windows-wmpnss-publicapi_31bf3856ad364e35_6.2.9200.16384_none_d9c228aebc040951/wmpmediasharing.dll \
+        wow64_microsoft-windows-wmpnss-publicapi_31bf3856ad364e35_6.2.9200.16384_none_e416d300f064cb4c/wmpmediasharing.dll \
+        amd64_microsoft-windows-wmpnss-service_31bf3856ad364e35_6.2.9200.16384_none_5c5073375857d765/wmpnetwk.exe \
+        amd64_microsoft-windows-wmpnss-ux_31bf3856ad364e35_6.2.9200.16384_none_108e6a75433ad671/wmpnscfg.exe \
+        amd64_microsoft-windows-wmpnss-api_31bf3856ad364e35_6.2.9200.16384_none_3ab32bcc7420d9de/wmpnssci.dll \
+        wow64_microsoft-windows-wmpnss-api_31bf3856ad364e35_6.2.9200.16384_none_4507d61ea8819bd9/wmpnssci.dll \
+        amd64_microsoft-windows-wmpnssui_31bf3856ad364e35_6.2.9200.16384_none_114a980de4740fd5/wmpnssui.dll \
+        x86_microsoft-windows-wmpnssui_31bf3856ad364e35_6.2.9200.16384_none_b52bfc8a2c169e9f/wmpnssui.dll \
+        amd64_microsoft-windows-mediaplayer-wmpps_31bf3856ad364e35_6.2.9200.16384_none_0753f73cc5c17cc4/wmpps.dll \
+        x86_microsoft-windows-mediaplayer-wmpps_31bf3856ad364e35_6.2.9200.16384_none_ab355bb90d640b8e/wmpps.dll \
+        amd64_microsoft-windows-m..player-shellpreview_31bf3856ad364e35_6.2.9200.16384_none_19677a95fcfb96a7/wmprph.exe \
+        wow64_microsoft-windows-m..player-shellpreview_31bf3856ad364e35_6.2.9200.16384_none_23bc24e8315c58a2/wmprph.exe \
+        amd64_microsoft-windows-mediaplayer-core_31bf3856ad364e35_6.2.9200.16384_none_64336a83d8ddef8c/wmpshare.exe \
+        wow64_microsoft-windows-mediaplayer-core_31bf3856ad364e35_6.2.9200.16384_none_6e8814d60d3eb187/wmpshare.exe \
+        amd64_microsoft-windows-mediaplayer-wmpshell_31bf3856ad364e35_6.2.9200.16384_none_6491011ccf1306ab/wmpshell.dll \
+        x86_microsoft-windows-mediaplayer-wmpshell_31bf3856ad364e35_6.2.9200.16384_none_0872659916b59575/wmpshell.dll \
+        amd64_microsoft-windows-m..yer-sideshow-gadget_31bf3856ad364e35_6.2.9200.16384_none_80f34a5238b656e4/wmpsideshowgadget.exe \
+        amd64_microsoft-windows-wmspdmoe_31bf3856ad364e35_6.2.9200.16384_none_52eea706f9a98751/wmspdmoe.dll \
+        x86_microsoft-windows-wmspdmoe_31bf3856ad364e35_6.2.9200.16384_none_f6d00b83414c161b/wmspdmoe.dll \
+        amd64_microsoft-windows-mediaplayer-wmvcore_31bf3856ad364e35_6.2.9200.16384_none_5ffc2b325f9bb736/wmvcore.dll \
+        x86_microsoft-windows-mediaplayer-wmvcore_31bf3856ad364e35_6.2.9200.16384_none_03dd8faea73e4600/wmvcore.dll \
+        amd64_microsoft-windows-wmvdecod_31bf3856ad364e35_6.2.9200.16384_none_1b542bb66a145864/wmvdecod.dll \
+        x86_microsoft-windows-wmvdecod_31bf3856ad364e35_6.2.9200.16384_none_bf359032b1b6e72e/wmvdecod.dll \
+        amd64_microsoft-windows-wmvdspa_31bf3856ad364e35_6.2.9200.16384_none_3f457cc78e79513d/wmvdspa.dll \
+        x86_microsoft-windows-wmvdspa_31bf3856ad364e35_6.2.9200.16384_none_e326e143d61be007/wmvdspa.dll \
+        amd64_microsoft-windows-wmvencod_31bf3856ad364e35_6.2.9200.16384_none_48c8034487fc1cc2/wmvencod.dll \
+        x86_microsoft-windows-wmvencod_31bf3856ad364e35_6.2.9200.16384_none_eca967c0cf9eab8c/wmvencod.dll \
+        amd64_microsoft-windows-wmvsdecd_31bf3856ad364e35_6.2.9200.16384_none_bf4322022e8f609c/wmvsdecd.dll \
+        x86_microsoft-windows-wmvsdecd_31bf3856ad364e35_6.2.9200.16384_none_6324867e7631ef66/wmvsdecd.dll \
+        amd64_microsoft-windows-wmvsencd_31bf3856ad364e35_6.2.9200.16384_none_bf4355442e8f609c/wmvsencd.dll \
+        x86_microsoft-windows-wmvsencd_31bf3856ad364e35_6.2.9200.16384_none_6324b9c07631ef66/wmvsencd.dll \
+        amd64_microsoft-windows-wmvxencd_31bf3856ad364e35_6.2.9200.16384_none_a2597e08c43ec227/wmvxencd.dll \
+        x86_microsoft-windows-wmvxencd_31bf3856ad364e35_6.2.9200.16384_none_463ae2850be150f1/wmvxencd.dll \
+        amd64_microsoft-windows-wpd-busenumservice_31bf3856ad364e35_6.2.9200.16384_none_d0c7d7ba55c69a11/wpdbusenum.dll \
+        amd64_microsoft.windows.h..ler.wpd-driverclass_31bf3856ad364e35_6.2.9200.16384_none_c177d5a8f1cdc678/wpd_ci.dll \
+        amd64_wpdcomp.inf_31bf3856ad364e35_6.2.9200.16384_none_d25ae956954313ee/wpdcomp.dll \
+        amd64_wpdfs.inf_31bf3856ad364e35_6.2.9200.16384_none_7eb67ce65c5ff7f8/wpdfs.dll \
+        amd64_wpdmtp.inf_31bf3856ad364e35_6.2.9200.16384_none_7863ed081074d338/wpdmtpbt.dll \
+        amd64_wpdmtp.inf_31bf3856ad364e35_6.2.9200.16384_none_7863ed081074d338/wpdmtp.dll \
+        amd64_wpdmtp.inf_31bf3856ad364e35_6.2.9200.16384_none_7863ed081074d338/wpdmtpdr.dll \
+        amd64_wpdmtp.inf_31bf3856ad364e35_6.2.9200.16384_none_7863ed081074d338/wpdmtpip.dll \
+        amd64_wpdmtp.inf_31bf3856ad364e35_6.2.9200.16384_none_7863ed081074d338/wpdmtpus.dll \
+        amd64_microsoft-windows-wpd-shellextension_31bf3856ad364e35_6.2.9200.16384_none_69f2940f508de85c/wpdshextautoplay.exe \
+        x86_microsoft-windows-wpd-shellextension_31bf3856ad364e35_6.2.9200.16384_none_0dd3f88b98307726/wpdshextautoplay.exe \
+        amd64_microsoft-windows-wpd-shellextension_31bf3856ad364e35_6.2.9200.16384_none_69f2940f508de85c/wpdshext.dll \
+        x86_microsoft-windows-wpd-shellextension_31bf3856ad364e35_6.2.9200.16384_none_0dd3f88b98307726/wpdshext.dll \
+        amd64_microsoft-windows-wpd-shellextension_31bf3856ad364e35_6.2.9200.16384_none_69f2940f508de85c/wpdshserviceobj.dll \
+        x86_microsoft-windows-wpd-shellextension_31bf3856ad364e35_6.2.9200.16384_none_0dd3f88b98307726/wpdshserviceobj.dll \
+        amd64_microsoft-windows-w..cationcompatibility_31bf3856ad364e35_6.2.9200.16384_none_c6f3d511684660ce/wpdsp.dll \
+        x86_microsoft-windows-w..cationcompatibility_31bf3856ad364e35_6.2.9200.16384_none_6ad5398dafe8ef98/wpdsp.dll \
+        amd64_microsoft-windows-w..networkconfigwizard_31bf3856ad364e35_6.2.9200.16384_none_31b64e6258e34f2c/wpdwcn.dll \
+        x86_microsoft-windows-w..networkconfigwizard_31bf3856ad364e35_6.2.9200.16384_none_d597b2dea085ddf6/wpdwcn.dll; do
+
+    case $i in
+             x86* | wow64*) helper_wmf62 $i 
+             w_try cp -vf "$W_TMP"/$i "$W_SYSTEM32_DLLS/"
+             ;;
+
+             amd64*) helper_wmf62 $i
+             w_try cp -vf "$W_TMP"/$i "$W_SYSTEM64_DLLS/"
+             ;;
+
+             *) w_warn "Nothing done" ;;
+           esac
+    done
+}
+
+#####################################################################################################################################################
+
