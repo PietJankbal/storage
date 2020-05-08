@@ -2,17 +2,6 @@ diff --git a/home/louis/winetricks b/home/louis/winetricksie8server2003def10jan
 index dffffab..e192e83 100755
 --- a/home/louis/winetricks
 +++ b/home/louis/winetricksie8server2003def10jan
-@@ -5054,6 +5054,10 @@ winetricks_set_wineprefix()
-         W_SYSTEM64_DLLS_WIN32="C:\\windows\\sysnative" # path to access 64-bit dlls from 32-bit apps
-         # shellcheck disable=SC2034
-         W_SYSTEM64_DLLS_WIN64="C:\\windows\\system32"  # path to access 64-bit dlls from 64-bit apps
-+        # There's also ProgramW6432, which =%ProgramFiles%(but only available when running under a 64 bit OS)
-+        # See https://ss64.com/nt/syntax-variables.html
-+        W_PROGRAMW6432_WIN="$(w_expand_env ProgramW6432)"
-+        W_PROGRAMW6432_UNIX="$(w_pathconv -u "$W_PROGRAMW6432_WIN")"
- 
-         # Probably need fancier handling/checking, but for a basic start:
-         # Note 'wine' may be named 'wine-stable'/'wine-staging'/etc.):
 @@ -10348,6 +10402,103 @@ load_ie8_kb2936068()
  
  #----------------------------------------------------------------
