@@ -39,7 +39,7 @@
 +
 +
 +#   Aftermath: try fixing wrong registry values due to bug https://bugs.winehq.org/show_bug.cgi?id=25740
-+    sed -i '/WindowsPowerShell/ s/%SystemRoot%/c:\\\\windows/' "$W_DRIVE_C"/../system.reg # only replace wrong %SystemRoot% in lines containing string "WindowsPOwershell"
++    sed -i '/WindowsPowerShell/ s/%SystemRoot%/c:\\\\windows/gI' "$W_DRIVE_C"/../system.reg # only replace wrong %SystemRoot% in lines containing string "WindowsPOwershell"
 +#   That leaves three more lines in system.reg with string %SystemRoot% written by the installer; do we have to replace them as well???
 +#   "EventMessageFile"=str(2):"%SystemRoot%\\System32\\spmsg.dll"
 +#   "ImagePath"="%SystemRoot%\\system32\\svchost.exe -k WINRM"
