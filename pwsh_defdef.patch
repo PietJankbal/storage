@@ -1,0 +1,246 @@
+diff --git a/programs/powershell/Makefile.in b/programs/powershell/Makefile.in
+index ac596fc97c..8fa1e73146 100644
+--- a/programs/powershell/Makefile.in
++++ b/programs/powershell/Makefile.in
+@@ -1,4 +1,5 @@
+ MODULE    = powershell.exe
++IMPORTS   = user32 urlmon
+ 
+ EXTRADLLFLAGS = -mconsole -municode -mno-cygwin
+ 
+diff --git a/programs/powershell/main.c b/programs/powershell/main.c
+index eb9a64ff0e..e664af7be2 100644
+--- a/programs/powershell/main.c
++++ b/programs/powershell/main.c
+@@ -1,5 +1,5 @@
+ /*
+- * Copyright 2017 Jactry Zeng for CodeWeavers
++ * powershell.exe - this program only calls pwsh.exe
+  *
+  * This library is free software; you can redistribute it and/or
+  * modify it under the terms of the GNU Lesser General Public
+@@ -14,20 +14,220 @@
+  * You should have received a copy of the GNU Lesser General Public
+  * License along with this library; if not, write to the Free Software
+  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301, USA
+- */
++ *
++
++ * Commands that Waves calls, the last one fails but not fatal for Waves
++ * powershell.exe Write-Host $PSVersionTable.PSVersion.Major $PSVersionTable.PSVersion.Minor
++ * powershell.exe -command &{'{0}.{1}' -f $PSVersionTable.PSVersion.Major, $PSVersionTable.PSVersion.Minor}
++ * powershell.exe (Get-PSDrive C).Free
++ * powershell.exe -noLogo -noExit  /c Register-WMIEvent -Query 'SELECT * FROM Win32_DeviceChangeEvent WHERE (EventType = 2 OR EventType = 3) GROUP WITHIN 4' -Action { [System.Console]::WriteLine('Devices Changed') }
++
++ * Downloads
++ * https://github.com/PowerShell/PowerShell/releases/download/v6.1.6/PowerShell-6.1.6-win-x64.msi
++ * https://github.com/PowerShell/PowerShell/releases/download/v6.1.6/PowerShell-6.1.6-win-x86.msi
++ * wine msiexec /i /media/louis/aqqa/PowerShell-6.1.6-win-x64.msi INSTALLFOLDER="C:\\Powershell6\\" /q
++
++ * Compilation (64 bit):
++ * x86_64-w64-mingw32-gcc main.c -o powershell.exe -mconsole -municode -lurlmon ???--builtin???
++ * Compilation (32 bit):
++ * i686-w64-mingw32-gcc main.c -o powershell.exe -mconsole -municode -lurlmon
++*/
++
++/* Due to bug https://bugs.winehq.org/show_bug.cgi?id=49508 this now only works with wine compiled with --without-mingw option...*/
++
++#define WIN32_LEAN_AND_MEAN
+ 
++#include <windows.h>
++#include <winuser.h>
++#include <winternl.h>
++#include <winbase.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <urlmon.h>
++#include <wchar.h>
++
++#include "wine/heap.h"
+ #include "wine/debug.h"
+ 
+ WINE_DEFAULT_DEBUG_CHANNEL(powershell);
+ 
++intptr_t __cdecl _wspawnv(int,const wchar_t*,const wchar_t* const *);
++
++#define MAX_LINE 512
++
++/* Following function taken from https://creativeandcritical.net/downloads/replacebench.c which is in public domain; Credits to the there mentioned authors*/
++/* Replaces in the string str all the occurrences of the source string "sub" with the destination string "rep" */
++wchar_t* replace_smart (const wchar_t *str, const wchar_t *sub, const wchar_t *rep)
++{
++    size_t slen = lstrlenW(sub);
++    size_t rlen = lstrlenW(rep);
++    size_t size = lstrlenW(str) + 1;
++    size_t diff = rlen - slen;
++    size_t capacity = (diff>0 && slen) ? 2 * size : size;
++    wchar_t *buf = (wchar_t *)heap_alloc(sizeof(wchar_t)*capacity);
++    wchar_t *find, *b = buf;
++
++    if (b == NULL) return NULL;
++    if (slen == 0) return memcpy(b, str, sizeof(wchar_t)*size);
++
++    while((find = /*strstrW*/(wchar_t *)wcsstr((const wchar_t *)str, (const wchar_t *)sub))) {
++        if ((size += diff) > capacity) {
++            wchar_t *ptr = (wchar_t *)heap_realloc(buf, capacity = 2 * size*sizeof(wchar_t));
++            if (ptr == NULL) {heap_free(buf); return NULL;}
++            b = ptr + (b - buf);
++            buf = ptr;
++        }
++        memcpy(b, str, (find - str) * sizeof(wchar_t)); /* copy up to occurrence */
++        b += find - str;
++        memcpy(b, rep, rlen * sizeof(wchar_t));       /* add replacement */
++        b += rlen;
++        str = find + slen;
++    }
++    memcpy(b, str, (size - (b - buf)) * sizeof(wchar_t));
++    b = (wchar_t *)heap_realloc(buf, size * sizeof(wchar_t));         /* trim to size */
++    return b ? b : buf;
++}
++
++BOOL contains_commando(WCHAR *arg)
++{
++    if ( wcsstr(arg, L"-c") || wcsstr(arg,L"-C") )
++        return TRUE;
++    else
++        return FALSE;
++}
++
+ int __cdecl wmain(int argc, WCHAR *argv[])
+ {
+     int i;
+ 
+-    WINE_FIXME("stub:");
++    char url[MAX_LINE] = "https://github.com/PowerShell/PowerShell/releases/download/v6.1.6/PowerShell-6.1.6-win-x64.msi"; //
++    char destination[MAX_LINE] = "PowerShell-6.1.6-win-x64.msi";
++
++    WCHAR pwsh_exeW[] = L"pwsh.exe";
++    WCHAR start_pwshW[] = L"start pwsh.exe "; /* leave the space at the end! */
++    WCHAR cur_dirW[MAX_PATH];
++    WCHAR commandlineW [MAX_PATH];
++
++    BOOL contains_command = 0; BOOL contains_noexit = 0; BOOL next_one_is_option_argument = 0; BOOL needs_work_around_crash = 0;
++    const WCHAR *new_args[3];
++
++    /* For now assume it`s installed in default path: */
++    WCHAR pwsh_pathW[MAX_PATH];
++
++    ExpandEnvironmentStringsW(L"%ProgramW6432%", pwsh_pathW, MAX_PATH+1);
++
++    lstrcatW(pwsh_pathW, L"\\Powershell\\6\\pwsh.exe "); /* leave the space at the end! */
++
++    if ( (GetFileAttributesW(pwsh_pathW) != INVALID_FILE_ATTRIBUTES) )
++        goto already_installed;
++
++    /* Download */
++    MessageBoxA(NULL, "    Looks like Powershell Core is not installed \nWill start downloading and install now\n \
++    This will take quite some time!!!\nNo progress bar is shown!", "Message", MB_ICONWARNING | MB_OK);
++
++    GetCurrentDirectoryW(MAX_PATH+1, cur_dirW);
++    SetCurrentDirectoryW(L"c:\\windows\\temp\\");
++    printf("Downloading File From: %s, To: %s \n", url, destination);
++
++    if( URLDownloadToFileA(NULL, url, destination, 0, NULL) != S_OK )
++        goto failed;
++    else
++        printf("File Successfully Downloaded \n");
++
++    system("msiexec.exe /i PowerShell-6.1.6-win-x64.msi /*INSTALLFOLDER=\"C:\\Windows\\Powershell6\\\"*/ /q");
++    SetCurrentDirectoryW(cur_dirW);
++
++already_installed:
++
++    if(argc == 1)
++    {
++        _wsystem(start_pwshW);
++        return 0;
++    }
++
++    FIXME("stub:\n");
+     for (i = 0; i < argc; i++)
+-        WINE_FIXME(" %s", wine_dbgstr_w(argv[i]));
+-    WINE_FIXME("\n");
++    {
++        FIXME(" %s", wine_dbgstr_w(argv[i]));//FIXME(fmt_lsW, argv[i]);
++        if (!_wcsnicmp(L"-c", argv[i],2))     contains_command++;  /* -Command */
++        if (!_wcsnicmp(L"-noe", argv[i],4))   contains_noexit++;  /* -NoExit */
++    }
++    FIXME("\n");
++
++    i = 1;
++    commandlineW[0] = '\0';
++     /* pwsh requires a command option "-c" , powershell doesn`t e.g. "powershell -NoLogo echo $env:username" should go
++    into "pwsh -NoLogo -c echo $env:username". This is troublesome initial attempt which needs lots of improvement... */
++
++    if(_wcsnicmp(L"-", argv[1],1))  {lstrcatW(commandlineW, L" -c ");  contains_command++;}/*1st arg is not an option (-.....) nor -c or -command ==> prepend with /c */
++
++    while(i<argc)
++    {
++        start:
++        if (!_wcsnicmp(L"-ve", argv[i],3)) {i++; goto done;}    /* -Version, just skip*/
++
++        lstrcatW(commandlineW,argv[i]); lstrcatW(commandlineW, L" "); /* concatenate all args into one single commandline */
+ 
++        if (contains_command) goto done;
++
++        /* For now start powershellconsole if options below are present because otherwise it crashes; possibly due to bug in wine (?????) */
++        if ( !_wcsnicmp(L"-f", argv[i],2) || /* -File */ \
++             !_wcsnicmp(L"-ps", argv[i],3) ||  /* -PSConsoleFile */ \
++             !_wcsnicmp(L"-en", argv[i],3)    /* -EncodedCommand */)
++                 needs_work_around_crash++;
++
++        if ( !_wcsnicmp(L"-f", argv[i],2) || /* -File */ \
++             !_wcsnicmp(L"-ps", argv[i],3) ||  /* -PSConsoleFile */ \
++             !_wcsnicmp(L"-ve", argv[i],3) ||    /* -Version */ \
++             !_wcsnicmp(L"-in", argv[i],3) ||    /* -InputFormat */ \
++             !_wcsnicmp(L"-ou", argv[i],3) ||   /* -OutputFormat */ \
++             !_wcsnicmp(L"-wi", argv[i],3) ||    /* -WindowStyle */ \
++             !_wcsnicmp(L"-en", argv[i],3) ||   /* -EncodedCommand */ \
++             !_wcsnicmp(L"-ex", argv[i],3)    /* -ExecutionPolicy */ )
++             {
++                 i++;
++                 next_one_is_option_argument = TRUE;
++                 goto start;
++             }
++            /* FIXME this needs improvement...*/
++             /* try handle something like powershell -nologo -windowstyle normal -outputformat xml -version 1.0 echo \$env:username */
++             if ( (_wcsnicmp(L"-", argv[i],1) && next_one_is_option_argument &&  i+1<argc && _wcsnicmp(L"-", argv[i+1],1)) || (!_wcsnicmp(L"-", argv[i],1) && i+1<argc && _wcsnicmp(L"-", argv[i+1],1)) ) {lstrcatW(commandlineW,L" -c "); contains_command++; next_one_is_option_argument=FALSE;}
++
++        done:
++        i++;
++    }
++
++    /* put replacements here....         from                                                    to                                          */
++    const WCHAR from_to[][MAX_PATH] = { L"Register-WMIEvent",                                    L"Write-Host",  /*change into a NOOP for now*/
++                                        L"garbage",                                              L"pspspspspspspspsp",
++                                      };
++
++    FIXME("\033[1;35m"); FIXME("\nnew command line is %s \n", wine_dbgstr_w(commandlineW)); FIXME("\033[0m\n");
++    for(i=0; i < ARRAY_SIZE(from_to);i+=2){
++
++    lstrcpyW( commandlineW, (const WCHAR*)replace_smart((const WCHAR*)commandlineW, (const WCHAR*)from_to[i], (const WCHAR*)from_to[i+1])  );
++    }
++
++    FIXME("\033[1;93m"); FIXME("\nmodified command line is %s \n", wine_dbgstr_w(commandlineW)); FIXME("\033[0m\n");
++
++    new_args[0] = pwsh_exeW;
++    new_args[1] = commandlineW;
++    new_args[2] = NULL;
++
++    /* HACK  It crashes with Invalid Handle if -noexit is present or just e.g. "powershell -nologo"; if powershellconsole is started it doesn`t crash... */
++    if( !contains_commando(commandlineW) || ( contains_commando(commandlineW) && contains_noexit) )
++    {
++        if(!needs_work_around_crash)
++        {
++            _wsystem(lstrcatW(start_pwshW, commandlineW));
++            return 0;
++        }
++    }
++
++    _wspawnv(2/*_P_OVERLAY*/, pwsh_pathW, new_args);
+     return 0;
++
++failed:
++    printf("Something went wrong :( \n");
++    return 1;
+ }
