@@ -1,0 +1,12 @@
+$MethodDefinition = @’
+
+[DllImport("ntdll.dll", CharSet = CharSet.Unicode)]
+
+public static extern int RtlGetCurrentDirectory_U(int buflen,  out string f);
+
+‘@
+
+$ntdll = Add-Type -MemberDefinition $MethodDefinition -Name ‘ntdll’ -Namespace ‘Win32’ -PassThru
+
+[string] $result=''
+$ntdll::RtlGetCurrentDirectory_U(512, [ref] $result) 
