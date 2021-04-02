@@ -1,0 +1,15 @@
+$MethodDefinition = @’
+
+[DllImport("ntdll.dll", CharSet = CharSet.Unicode)]
+
+public static extern int RtlGetCurrentDirectory_U(int buflen,  string buf);
+
+‘@
+
+$ntdll = Add-Type -MemberDefinition $MethodDefinition -Name ‘ntdll’ -Namespace ‘Win32’ -PassThru
+
+# You may now call the CopyFile function
+
+# Copy calc.exe to the user’s desktop
+
+$ntdll::RtlGetCurrentDirectory_U(512, $result) 
